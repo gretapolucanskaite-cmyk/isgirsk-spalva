@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: transparent;
+    font-family: 'DM Sans', -apple-system, sans-serif;
+    padding: 0;
+  }
+
+  .color-picker { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+
+  .cp {
+    width: 28px; height: 28px; border-radius: 50%;
+    cursor: pointer; border: 2px solid transparent;
+    transition: transform 0.15s, border-color 0.15s;
+    appearance: none; -webkit-appearance: none;
+  }
+  .cp:hover { transform: scale(1.15); }
+  .cp.sel { border-color: #1a1a18; transform: scale(1.1); }
+
+  .brush-row { display: flex; gap: 8px; margin-bottom: 12px; }
+
+  .brbtn {
+    padding: 5px 14px; border-radius: 20px;
+    background: none; border: 1px solid #ccc;
+    font-size: 12px; color: #888;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .brbtn.on { background: #1a1a18; color: white; border-color: #1a1a18; }
+
+  #draw-canvas {
+    display: block; width: 100%; height: 220px;
+    border-radius: 10px;
+    background: #f0eef8;
+    border: 1px solid #d8d5e8;
+    cursor: crosshair; touch-action: none;
+    margin-bottom: 10px;
+  }
+
+  .draw-actions { display: flex; gap: 8px; }
+
+  .da-btn {
+    flex: 1; padding: 12px; border-radius: 8px;
+    font-size: 13px; cursor: pointer; transition: all 0.15s;
+  }
+
+  .da-clear {
+    background: none; border: 1px solid #ccc; color: #888;
+  }
+  .da-share {
+    background: #E24B4A; border: none; color: white; font-weight: 500;
+  }
+</style>
+</head>
+<body>
+
+<div class="color-picker" id="cpicker"></div>
+<div class="brush-row">
+  <button class="brbtn on" onclick="setBrush(3,this)">plona</button>
+  <button class="brbtn" onclick="setBrush(8,this)">vidutinė</button>
+  <button class="brbtn" onclick="setBrush(18,this)">stora</button>
+</div>
+<canvas id="draw-canvas"></canvas>
+<div class="draw-actions">
+  <button class="da-btn da-clear" onclick="clearCanvas()">Ištrinti</button>
+  <button class="da-btn da-share" onclick="shareCanvas()">Dalintis →</button>
+</div>
+
+<script>
+  const COLORS = ['#E24B4A','#EF9F27','#639922','#97C459','#378ADD','#7F77DD','#AFA9EC','#1a1a18','#888780'];
+  let currentColor = COLORS[0], brushSize = 3;
+
+  const picker = document.getElementById('cpicker');
+  COLORS.forEach((c, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'cp' + (i===0?' sel':'');
+    btn.style.background = c;
+    btn.onclick = () => {
+      document.querySelectorAll('.cp').forEach(b=>b.classList.remove('sel'));
+      btn.classList.add('sel');
+      currentColor = c;
+    };
+    picker.appendChild(btn);
+  });
+
+  function setBrush(s, btn) {
+    brushSize = s;
+    document.querySelectorAll('.brbtn').forEach(b=>b.classList.remove('on'));
+    btn.classList.add('on');
+  }
+
+  const canvas = document.getElementById('draw-canvas');
+  const ctx = canvas.getContext('2d');
+
+  function resizeCanvas() {
+    const img = ctx.getImageData(0,0,canvas.width,canvas.height);
+    canvas.width = canvas.offsetWidth;
+    canvas.height = 220;
+    ctx.putImageData(img,0,0);
+  }
+  window.addEventListener('load', resizeCanvas);
+  window.addEventListener('resize', resizeCanvas);
+
+  let drawing=false, lx=0, ly=0;
+
+  function pos(e) {
+    const r = canvas.getBoundingClientRect();
+    const s = e.touches ? e.touches[0] : e;
+    return { x:(s.clientX-r.left)*canvas.width/r.width, y:(s.clientY-r.top)*canvas.height/r.height };
+  }
+
+  canvas.addEventListener('mousedown', e=>{drawing=true;const p=pos(e);lx=p.x;ly=p.y;ctx.beginPath();ctx.arc(lx,ly,brushSize/2,0,Math.PI*2);ctx.fillStyle=currentColor;ctx.fill();});
+  canvas.addEventListener('mousemove', e=>{if(!drawing)return;const p=pos(e);ctx.beginPath();ctx.moveTo(lx,ly);ctx.lineTo(p.x,p.y);ctx.strokeStyle=currentColor;ctx.lineWidth=brushSize;ctx.lineCap='round';ctx.lineJoin='round';ctx.stroke();lx=p.x;ly=p.y;});
+  canvas.addEventListener('mouseup', ()=>drawing=false);
+  canvas.addEventListener('mouseleave', ()=>drawing=false);
+  canvas.addEventListener('touchstart', e=>{drawing=true;const p=pos(e);lx=p.x;ly=p.y;e.preventDefault();},{passive:false});
+  canvas.addEventListener('touchmove', e=>{if(!drawing)return;const p=pos(e);ctx.beginPath();ctx.moveTo(lx,ly);ctx.lineTo(p.x,p.y);ctx.strokeStyle=currentColor;ctx.lineWidth=brushSize;ctx.lineCap='round';ctx.lineJoin='round';ctx.stroke();lx=p.x;ly=p.y;e.preventDefault();},{passive:false});
+  canvas.addEventListener('touchend', ()=>drawing=false);
+
+  function clearCanvas() { ctx.clearRect(0,0,canvas.width,canvas.height); }
+
+  function shareCanvas() {
+    try {
+      canvas.toBlob(blob => {
+        if (navigator.share && blob) {
+          navigator.share({ files:[new File([blob],'mano-sinestezija.png',{type:'image/png'})], title:'Mano sinestezija', text:'Išgirsk spalvą · Kultūros naktys 2026' });
+        } else {
+          const a=document.createElement('a'); a.download='mano-sinestezija.png'; a.href=canvas.toDataURL(); a.click();
+        }
+      });
+    } catch(e) { const a=document.createElement('a'); a.download='mano-sinestezija.png'; a.href=canvas.toDataURL(); a.click(); }
+  }
+</script>
+</body>
+</html>
